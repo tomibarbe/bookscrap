@@ -16,12 +16,15 @@ class Scraper:
     Webscraping program for gathering data on different genres from the Book Depository website
     """
 
-    def __init__(self, keyword: str, number_of_items: int) -> None:
+    def __init__(self, keyword: str, number_of_items: int, availability: str, sortBy: str, format: str) -> None:
         """
         Initialises the object instance
         Args:
            keyword (str): The genre of book to scrape
            number_of_items (int): Number of items to scrape
+           availability (str): "1" for in-stock, "2" for pre-order, nothing for both
+           sortBy (str): "popularity", ...others
+           format (str): "1" for paperback, ...others (see on webpage), nothing for everything
 
         Returns:
             None
@@ -29,6 +32,9 @@ class Scraper:
 
         self.__headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36"}
         self.keyword = keyword
+        self.availability = availability
+        self.sortBy = sortBy
+        self.format = format
         self.number_of_items = number_of_items
        
 
@@ -40,7 +46,7 @@ class Scraper:
             urls (list): Urls of the pages to be scraped
             
         """
-        base_url= f"https://www.bookdepository.com/search?searchTerm={self.keyword}"
+        base_url= f"https://www.bookdepository.com/search?searchTerm={self.keyword}&format={self.format}&availability={self.availability}&searchSortBy={self.sortBy}"
         url_separator= "&page="
         pages= math.ceil(self.number_of_items/ 30)
         urls= []
@@ -98,7 +104,6 @@ class Scraper:
             item_href = item.select("h3.title a[href]")
             for val in item_href:
                 item_link = "https://www.bookdepository.com"+ val["href"]
-                print(item_link)
                 item_list.append(item_link)
                 if len(item_list) >= self.number_of_items:
                     break
@@ -115,7 +120,6 @@ class Scraper:
             title (str): title of the book
             
         """
-        features = soup.find('ul', {'class': "biblio-info"})
         title = None
         try:
             title= soup.find('h1', {'itemprop': "name"}).text  
@@ -124,7 +128,7 @@ class Scraper:
         finally:
             return title
         
-    def get_book_title(self, soup) -> str:
+    def get_book_image(self, soup) -> str:
         """
         Extracts the title of the book from the parsed BeautifulSoup object
 
@@ -135,12 +139,13 @@ class Scraper:
             title (str): title of the book
             
         """
-        features = soup.find('ul', {'class': "biblio-info"})
         title = None
         try:
-            title= soup.find('h1', {'itemprop': "name"}).text  
+            title= soup.find('img', {'class': "book-img"})['src']
         except ScraperError:
-            raise ScraperError     
+            raise ScraperError
+        except KeyError:
+            title = soup.find('img', {'class': "book-img"})['data-lazy']
         finally:
             return title
         
@@ -471,10 +476,9 @@ class Scraper:
         """
         data.to_csv(f'{file_title}.csv', index= False)
 
-
     def scrape_data (self) -> pd.DataFrame:
         """
-        Scrapes the Book Depository website and returns a dataframe of the specific genre. 
+        Scrapes the Book Depository website, enters each individual book's page to gather more info, and returns a dataframe of the specific genre. 
 
         Returns:
             data: A dataframe of all the books scraped
@@ -506,7 +510,8 @@ class Scraper:
             rating= self.get_book_rating(soup2)
             rating_count= self.get_book_ratingcount(soup2)
             price= self.get_book_price(soup2) 
-            data_list.append([self.keyword, title, author, format, number_of_pages, dimension,
+            image= self.get_book_image(soup2) 
+            data_list.append([self.keyword, title, author, image, format, number_of_pages, dimension,
                                 weight, date_published, publisher, 
                                 ISBN, language, city, country,
                                 bestseller_rank, rating, rating_count, price
@@ -514,7 +519,7 @@ class Scraper:
             num_book+= 1
             print (f'{num_book} book(s) has been scraped and appended')
           print ('Next page is being scraped')
-        data= self.create_dataframe(data_list, columns= ["genre", "title", "author", "format", "number_of_pages", "dimension",
+        data= self.create_dataframe(data_list, columns= ["genre", "title", "author", "image", "format", "number_of_pages", "dimension",
                                 "weight", "date_published", "publisher", 
                                 "ISBN", "language", "city", "country",
                                 "bestseller_rank", "rating", "rating_count", "price"
