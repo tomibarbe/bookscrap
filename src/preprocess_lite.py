@@ -22,6 +22,6 @@ class ProcessData:
         data["date_published"] = pd.to_datetime(data["date_published"], format='%d %b %Y', errors='ignore')  
         data["ISBN"] = data["ISBN"].str.strip()
         data["rating"] = data["rating"].str.strip()
-        data["price"] = data["price"].replace(regex=True, to_replace=r'[^0-9,\-]', value=r'')
-        data["price"] = data["price"].str.replace(",", ".").astype(float, errors='ignore')
+        data["price"] = data["price"].replace(regex=True, to_replace=r'[^0-9.\-]', value=r'')
+        data.rename(columns={'price': 'price (gbp)'})
         return data
